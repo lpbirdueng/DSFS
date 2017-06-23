@@ -5,6 +5,7 @@ import random
 from c04.Linear_Algebra import distance
 from c04.Linear_Algebra import vector_substract
 from c04.Linear_Algebra import scalar_multiply
+import math
 
 
 def sum_of_squares(v):
@@ -106,7 +107,7 @@ def negate_all(f):
     return lambda *args, **kwargs: [-y for y in f(*args, **kwargs)]
 
 
-def maximize_batch(target_fn, gradient_fn, theta_0, tolerance=0.000001):
+def maximize_batch(target_fn, gradient_fn, theta_0, tolerance=0.001):
     return minimize_batch(negate(target_fn), negate_all(gradient_fn), theta_0, tolerance)
 
 
@@ -150,8 +151,8 @@ def maximize_stochastic(target_fn, gradient_fn, x, y, theta_0, alpha_0=0.01):
     return minimize_stochastic(negate(target_fn), negate_all(gradient_fn), x, y, theta_0, alpha_0)
 
 if __name__ == '__main__':
-    # v = [random.randint(-10, 10) for i in range(3)]
-    v = [3, -6]
+    v = [random.randint(-10, 10) for i in range(3)]
+    #v = [0, 0]
     print('v = ', v)
 
     minimize_batch(sum_of_squares, sum_of_squares_gradient, v)
@@ -179,10 +180,5 @@ if __name__ == '__main__':
 
     # plot to show they're basically the same
     """
-    derivation_estimate_sum_of_squares = partial(difference_quotient, sum_of_squares, h=0.01)
-    x = range(-10, 10)
-    plt.title("estimate derivation of sum of squares")
-    # plt.plot(x, derivation_estimate_sum_of_squares,, 'b+', label="Estimate")
-    plt.legend()
-    plt.show()
+
     pass
