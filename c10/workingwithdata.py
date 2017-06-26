@@ -1,15 +1,24 @@
 # -*- coding: utf-8 -*-
 import math
 from collections import Counter
+from functools import partial
+
 import matplotlib.pyplot as plt
 import random
 from c06.probability import inverse_normal_cdf
-from c04.Linear_Algebra import shape
+from c04.Linear_Algebra import shape, scalar_multiply, vector_substract
 from c04.Linear_Algebra import get_column
 from c04.Linear_Algebra import make_matrix
+from c04.Linear_Algebra import dot
+from c04.Linear_Algebra import vector_sum
+from c05.statistics import mean
 from c05.statistics import correlation
+from c05.statistics import standard_deviation
+from c04.Linear_Algebra import magnitude
 import dateutil.parser
 import csv
+
+from c08.gradientdescent import maximize_batch, maximize_stochastic
 
 
 def bucketize(point, bucket_size):
@@ -80,6 +89,103 @@ def parse_dict(input_dict, parser_dict):
              for field_name, value in input_dict.iteritems()}
 
 
+def scale(data_matrix):
+    """returns the means and standard deviations of each column"""
+    num_rows, num_cols = shape(data_matrix)
+    means = [mean(get_column(data_matrix, j))
+             for j in range(num_cols)]
+    stdevs = [standard_deviation(get_column(data_matrix, j))
+              for j in range(num_cols)]
+    return means, stdevs
+
+
+def rescale(data_matrix):
+    """rescales the input data so that each column
+    has mean 0 and standard deviation 1
+    leaves alone columns with no deviation"""
+    means, stdevs = scale(data_matrix)
+
+    def rescaled(i, j):
+        if stdevs[j] > 0:
+            return (data_matrix[i][j] - means[j])/stdevs[j]
+        else:
+            return data_matrix[i][j]
+    num_rows, num_cols = shape(data_matrix)
+    return make_matrix(num_rows, num_cols, rescaled)
+
+
+def de_mean_matrix(A):
+    """returns the result of subtracting from every value in A the mean
+    value of its column. the resulting matrix has mean 0 in every column"""
+    nr, nc = shape(A)
+    column_means, _ = scale(A)
+    return make_matrix(nr, nc, lambda  i, j: A[i][j] - column_means[j])
+
+
+def direction(w):
+    mag = magnitude(w)
+    return [w_i / mag for w_i in w]
+
+
+def directional_variance_i(x_i, w):
+    """the variance of the row x_i in the direction determined by w"""
+    return dot(x_i, direction(w)) ** 2
+
+
+def directional_variance(X, w):
+    """the variance of the data in the direction determined w"""
+    return sum(directional_variance_i(x_i, w)
+               for x_i in X)
+
+
+def directional_variance_gradient_i(x_i, w):
+    """the contribution of row x_i to the gradient of the direction-w variance"""
+    projection_length = dot(x_i, direction(w))
+    return [2 * projection_length * x_ij for x_ij in x_i]
+
+
+def directional_variance_gradient(X, w):
+    return vector_sum(directional_variance_gradient_i(x_i, w)
+                      for x_i in X)
+
+
+def first_principal_component(X):
+    guess = [1 for _ in X[0]]
+    unscaled_maximizer = maximize_batch(
+        partial(directional_variance, X),           # is now a function of w
+        partial(directional_variance_gradient, X),  # is now a function of w
+        guess)
+    return direction(unscaled_maximizer)
+
+
+# here there is no "y", so we just pass in a vector of Nones
+# and functions that ignor that input
+def first_principal_component_sgd(X):
+    guess = [1 for _ in X[0]]
+    unscaled_maximizer = maximize_stochastic(
+        lambda x, _, w: directional_variance_i(x, w),
+        lambda x, _, w: directional_variance_gradient_i(x, w),
+        X,
+        [None for _ in X],      # the fake "y"
+        guess)
+    return direction(unscaled_maximizer)
+
+
+def project(v, w):
+    """return the projection of v onto the direction w"""
+    projection_length = dot(v, w)
+    return scalar_multiply(projection_length, w)
+
+
+def remove_projection_from_vector(v, w):
+    """projects v onto w and substracts the result from v"""
+    return vector_substract(v, project(v, w))
+
+
+def remove_projection(X, w):
+    """for each row of X
+    projects the row onto w, and substracts the result from the row"""
+    return [remove_projection_from_vector(x_i, w) for x_i in X]
 if __name__ == '__main__':
     data = []
     with open("comma_delimited_stock_prices.csv", newline='') as f:
